@@ -12,6 +12,16 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 
+// Interruption management
+#include <asm/irq.h>
+#include <linux/sched.h>
+#include <linux/interrupt.h>
+#include <linux/signal.h>
+
+// Memory management
+#include <linux/slab.h>
+#include <linux/uaccess.h>
+
 //driver interface
 #include "mon_driver.h"
 
@@ -32,16 +42,32 @@ dev_t dev = 0;
 static struct class* dev_class;
 static struct cdev etx_cdev;
 
+
+// Interruption management
+static irq_handler_t my_interruption(int irq, void *dev_id, struct pt_regs *regs)
+{
+	disable_irq(IRQ);
+	printk(KERN_DEBUG "INTERRUPTION\n");
+	enable_irq(IRQ);
+	
+	return 0;
+}
+
 // File device functions
 static int driver_open(struct inode* inode, struct file* file)
 {
 	printk(KERN_DEBUG "Open() \n");
+	if(request_irq(IRQ, (irq_handler_t)my_interruption, IRQF_ONESHOT, "mydriver", NULL) != 0)
+	{
+		printk(KERN_WARNING "erreur on request_irq\n");
+	}
 	return 0;
 }
 
 static int driver_close(struct inode* inode, struct file* file)
 {
 	printk(KERN_DEBUG "Close() \n");
+	free_irq(IRQ, NULL);
 	return 0;
 }
 
@@ -94,6 +120,7 @@ static struct file_operations fops =
 	.release = driver_close,
 	.unlocked_ioctl = driver_ioctl
 };
+
 
 // Modules functions
 int mydriver_init(void)
